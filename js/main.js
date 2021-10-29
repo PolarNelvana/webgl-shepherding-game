@@ -1,35 +1,36 @@
-var gl;
-var programInfo;
-var bufferInfo;
-var skyboxProgramInfo;
-var quadBufferInfo;
-var v3 = twgl.v3;
-var m4 = twgl.m4;
-var mat4;
+let gl;
+let bufferInfo;
+let skyboxProgramInfo;
+let quadBufferInfo;
+let v3 = twgl.v3;
+let m4 = twgl.m4;
+let mat4;
 const loader = new THREE.OBJLoader();
 
-var fov_Y = 50;
-var cameraAngles = {
+let fov_Y = 50;
+let cameraAngles = {
     y_angle: 0,
     x_angle: -10,
 };
 
-var near = 0.1;
-var far = 2.5;
-var canvasWidth = 1000;
-var canvasHeight = 1000;
-var aspect = canvasWidth / canvasHeight;
-var radius = 1;
-var modelObj;
-var modelDim;
-var cameraLookAt;
+let near = 0.1;
+let far = 2.5;
+let canvasWidth = 1000;
+let canvasHeight = 1000;
+let aspect = canvasWidth / canvasHeight;
+let radius = 1;
+let modelObj;
+let modelDim;
+let cameraLookAt;
 
-var texture;
-var cubemap;
+let texture;
+let cubemap;
 
-var mapping = "Texture";
+let mapping = "Texture";
 
 let scene = [];
+let time = 0;
+let dt;
 
 /** @type {WebGLRenderingContext} */
 window.addEventListener("load", async function () {
@@ -37,7 +38,7 @@ window.addEventListener("load", async function () {
     gl = document.getElementById("glcanvas").getContext("webgl2");
     const textures = twgl.createTextures(gl, {
         rayman: {
-            src: 'assets/textures/Rayman.png',
+            src: 'assets/rayman/Rayman.png',
             flipY: true
         },
         environment: {
@@ -55,73 +56,21 @@ window.addEventListener("load", async function () {
         }
     });
 
-    const vs = `#version 300 es
-        precision mediump float;
+    const models = {
+        rayman: createSCs(await loadOBJ('assets/rayman/raymanModel.obj'))
+    };
 
-        uniform mat4 modelMatrix;
-        uniform mat4 viewMatrix;
-        uniform mat4 projectionMatrix;
+    rayman = new GameObject(
+        models.rayman,
+        textures.rayman,
+        raymanShaders,
+        raymanScript
+    );
 
-        in vec3 position;
-        in vec3 normal;
-        in vec2 uv;
+    texture = textures.rayman;
 
-        out vec2 fragUV;
-        out vec3 fragNormal;
-        out vec3 fragPosition;
 
-        void main () {
-            vec4 newPosition = modelMatrix*vec4(position,1);
-            fragPosition = newPosition.xyz;
-            gl_Position = projectionMatrix*viewMatrix*modelMatrix*vec4(position,1);
-            mat4 normalMatrix = transpose(inverse(modelMatrix));
-
-            fragNormal = normalize((normalMatrix*vec4(normal,0)).xyz);
-            fragUV = uv;
-        }`;
-
-    const fs = `#version 300 es
-        precision mediump float;
-
-        uniform sampler2D tex;
-        uniform samplerCube cubeMapTex;
-        uniform int mapping;
-        uniform vec3 eyePosition;
-
-        in vec2 fragUV;
-        in vec3 fragNormal;
-        in vec3 fragPosition;
-
-        out vec4 outColor;
-
-        void main () {
-            vec3 V = normalize(eyePosition-fragPosition);
-            vec3 N = normalize(fragNormal);
-            vec3 R = reflect(-V, N);
-
-            vec3 texColor = texture( tex, fragUV ).rgb;
-            vec3 envColor = texture( cubeMapTex, R ).rgb;
-            outColor = vec4(mapping == 1 ? texColor : envColor, 1);
-            // outColor = vec4(abs(N), 1);
-        }`;
-
-    modelObj = createSCs(await loadOBJ('assets/models/raymanModel.obj'));
-    modelDim = computeModelExtent(modelObj);
-
-    cameraLookAt = modelDim.center;
-
-    vertexAttributes = modelObj.map((d) => ({
-        position: { numComponents: 3, data: d.sc.positions },
-        normal: { numComponents: 3, data: d.sc.normals },
-        uv: { numComponents: 2, data: d.sc.uvs },
-    }))
-
-    bufferInfoArray = vertexAttributes.map((vertexAttributes) =>
-        twgl.createBufferInfoFromArrays(gl, vertexAttributes)
-    )
-
-    programInfo = twgl.createProgramInfo(gl, [vs, fs]);
-    gl.useProgram(programInfo.program);
+    cameraLookAt = rayman.modelDim.center;
 
     twgl.resizeCanvasToDisplaySize(gl.canvas);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
@@ -129,17 +78,17 @@ window.addEventListener("load", async function () {
     gl.clearColor(0.3, 0.4, 0.5, 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    texture = textures.rayman;
     cubemap = textures.environment;
 
     renderScene(
-        programInfo,
         getViewMatrix(
             radius,
             deg2rad(cameraAngles.x_angle),
-            deg2rad(cameraAngles.y_angle)
+            deg2rad(cameraAngles.y_angle),
+            rayman
         ),
-        getProjectionMatrix(fov_Y, near, far)
+        getProjectionMatrix(fov_Y, near, far, rayman),
+        rayman
     );
 
     quadBufferInfo = twgl.createBufferInfoFromArrays(gl, {
@@ -149,7 +98,7 @@ window.addEventListener("load", async function () {
         }
     })
 
-    var sbvs = `#version 300 es
+    let sbvs = `#version 300 es
         precision mediump float;
         in vec2 position;
         out vec2 fragPosition;
@@ -157,7 +106,7 @@ window.addEventListener("load", async function () {
             fragPosition = position;
             gl_Position = vec4(position, 1, 1);
         }`;
-    var sbfs = `#version 300 es
+    let sbfs = `#version 300 es
         precision mediump float;
         uniform samplerCube cubemap;
         in vec2 fragPosition;
@@ -178,28 +127,30 @@ window.addEventListener("load", async function () {
         getViewMatrix(
             radius,
             deg2rad(cameraAngles.x_angle),
-            deg2rad(cameraAngles.y_angle)
+            deg2rad(cameraAngles.y_angle),
+            rayman
         ),
-        getProjectionMatrix(fov_Y, near, far)
+        getProjectionMatrix(fov_Y, near, far, rayman)
     );
 
     RLoop = new RenderLoop(onRender).start();
 });
 
-renderScene = (sceneProgramInfo, viewMatrix, projectionMatrix) => {
+renderScene = (viewMatrix, projectionMatrix, object) => {
+    let programInfo = object.programInfo;
     gl.useProgram(programInfo.program);
     const eyePosition = m4.inverse(viewMatrix).slice(12, 15);
     const uniforms = ({
         eyePosition,
         modelMatrix: m4.identity(),
         viewMatrix: viewMatrix,
-        projectionMatrix: getProjectionMatrix(fov_Y, near, far),
-        tex: texture,
+        projectionMatrix: projectionMatrix,
+        tex: object.texture,
         cubeMapTex: cubemap,
         mapping: mapping == "Texture"
     })
     twgl.setUniforms(programInfo, uniforms);
-    bufferInfoArray.forEach((bufferInfo) => {
+    object.bufferInfoArray.forEach((bufferInfo) => {
         twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
         twgl.drawBufferInfo(gl, bufferInfo);
     });
@@ -228,50 +179,50 @@ renderSkybox = (skyboxProgramInfo, viewMatrix, projectionMatrix) => {
     gl.depthFunc(gl.LESS);
 }
 
-
-
-function getViewMatrix(r, x_angle, y_angle) {
+function getViewMatrix(r, x_angle, y_angle, object) {
     const gazeDirection = m4.transformDirection(
         m4.multiply(m4.rotationY(y_angle), m4.rotationX(x_angle)),
         [0, 0, 1]
     );
-    const eye = v3.add(cameraLookAt, v3.mulScalar(gazeDirection, r * modelDim.dia));
+    const eye = v3.add(cameraLookAt, v3.mulScalar(gazeDirection, r * object.modelDim.dia));
     const cameraMatrix = m4.lookAt(eye, cameraLookAt, [0, 1, 0]);
     return m4.inverse(cameraMatrix);
 }
 
-function getProjectionMatrix(fov, near, far) {
+function getProjectionMatrix(fov, near, far, object) {
     return m4.perspective(
         deg2rad(fov),
         aspect,
-        near * modelDim.dia,
-        far * modelDim.dia
+        near * object.modelDim.dia,
+        far * object.modelDim.dia
     );
 }
 
-
-
-var time = 0;
-
-function onRender(dt) {
+function onRender() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     time += dt;
-    renderScene(
-        programInfo,
-        getViewMatrix(
-            radius,
-            deg2rad(cameraAngles.x_angle),
-            deg2rad(time * 50)
-        ),
-        getProjectionMatrix(fov_Y, near, far)
-    );
+
+    scene.forEach(o => {
+        renderScene(
+            getViewMatrix(
+                radius,
+                deg2rad(cameraAngles.x_angle),
+                deg2rad(time * 50),
+                o
+            ),
+            getProjectionMatrix(fov_Y, near, far, o),
+            o
+        );
+    });
+
     renderSkybox(
         skyboxProgramInfo,
         getViewMatrix(
             radius,
             deg2rad(cameraAngles.x_angle),
-            deg2rad(cameraAngles.y_angle)
+            deg2rad(cameraAngles.y_angle),
+            rayman
         ),
-        getProjectionMatrix(fov_Y, near, far)
+        getProjectionMatrix(fov_Y, near, far, rayman)
     );
 }
