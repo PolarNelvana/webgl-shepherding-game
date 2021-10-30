@@ -21,9 +21,7 @@ let aspect = canvasWidth / canvasHeight;
 let radius = 1;
 let modelObj;
 let modelDim;
-let cameraLookAt;
-
-let texture;
+let camera;
 let cubemap;
 
 let mapping = "Texture";
@@ -36,6 +34,12 @@ let dt;
 window.addEventListener("load", async function () {
     mat4 = importMat4();
     gl = document.getElementById("glcanvas").getContext("webgl2");
+    twgl.resizeCanvasToDisplaySize(gl.canvas);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.enable(gl.DEPTH_TEST);
+    gl.clearColor(0.3, 0.4, 0.5, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
     const textures = twgl.createTextures(gl, {
         rayman: {
             src: 'assets/rayman/Rayman.png',
@@ -55,11 +59,13 @@ window.addEventListener("load", async function () {
             min: gl.LINEAR_MIPMAP_LINEAR
         }
     });
+    cubemap = textures.environment;
 
     const models = {
         rayman: createSCs(await loadOBJ('assets/rayman/raymanModel.obj'))
     };
 
+    // Example Game Objects
     rayman = new GameObject(
         models.rayman,
         textures.rayman,
@@ -67,30 +73,23 @@ window.addEventListener("load", async function () {
         raymanScript
     );
 
-    texture = textures.rayman;
-
-
-    cameraLookAt = rayman.modelDim.center;
-
-    twgl.resizeCanvasToDisplaySize(gl.canvas);
-    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    gl.enable(gl.DEPTH_TEST);
-    gl.clearColor(0.3, 0.4, 0.5, 1);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-    cubemap = textures.environment;
-
-    renderScene(
-        getViewMatrix(
-            radius,
-            deg2rad(cameraAngles.x_angle),
-            deg2rad(cameraAngles.y_angle),
-            rayman
-        ),
-        getProjectionMatrix(fov_Y, near, far, rayman),
-        rayman
+    rayman2 = new GameObject(
+        models.rayman,
+        textures.rayman,
+        raymanShaders,
+        raymanScript
     );
 
+    // Example movement
+    rayman.translate([-5, 0, 0]);
+    rayman2.rotate({ z: -45 });
+
+    camera = {
+        position: [0, 0, 40],
+        lookAt: [0, 0, 0],
+    }
+
+    // Skybox stuff, should be separated from main
     quadBufferInfo = twgl.createBufferInfoFromArrays(gl, {
         position: {
             numComponents: 2,
@@ -122,35 +121,26 @@ window.addEventListener("load", async function () {
         }`;
     skyboxProgramInfo = twgl.createProgramInfo(gl, [sbvs, sbfs]);
 
-    renderSkybox(
-        skyboxProgramInfo,
-        getViewMatrix(
-            radius,
-            deg2rad(cameraAngles.x_angle),
-            deg2rad(cameraAngles.y_angle),
-            rayman
-        ),
-        getProjectionMatrix(fov_Y, near, far, rayman)
-    );
-
+    // start render loop
     RLoop = new RenderLoop(onRender).start();
 });
 
-renderScene = (viewMatrix, projectionMatrix, object) => {
-    let programInfo = object.programInfo;
+renderScene = (viewMatrix, projectionMatrix, o) => {
+    let programInfo = o.programInfo;
     gl.useProgram(programInfo.program);
-    const eyePosition = m4.inverse(viewMatrix).slice(12, 15);
+    // const eyePosition = m4.inverse(viewMatrix).slice(12, 15);
+    const eyePosition = camera.position;
     const uniforms = ({
         eyePosition,
-        modelMatrix: m4.identity(),
+        modelMatrix: o.getModelMatrix(),
         viewMatrix: viewMatrix,
         projectionMatrix: projectionMatrix,
-        tex: object.texture,
+        tex: o.texture,
         cubeMapTex: cubemap,
         mapping: mapping == "Texture"
     })
     twgl.setUniforms(programInfo, uniforms);
-    object.bufferInfoArray.forEach((bufferInfo) => {
+    o.bufferInfoArray.forEach((bufferInfo) => {
         twgl.setBuffersAndAttributes(gl, programInfo, bufferInfo);
         twgl.drawBufferInfo(gl, bufferInfo);
     });
@@ -184,8 +174,9 @@ function getViewMatrix(r, x_angle, y_angle, object) {
         m4.multiply(m4.rotationY(y_angle), m4.rotationX(x_angle)),
         [0, 0, 1]
     );
-    const eye = v3.add(cameraLookAt, v3.mulScalar(gazeDirection, r * object.modelDim.dia));
-    const cameraMatrix = m4.lookAt(eye, cameraLookAt, [0, 1, 0]);
+    // const eye = v3.add(camera.lookAt, v3.mulScalar(gazeDirection, r * object.modelDim.dia));
+    // const eye = v3.add(camera.lookAt, camera.position);
+    const cameraMatrix = m4.lookAt(camera.position, camera.lookAt, [0, 1, 0]);
     return m4.inverse(cameraMatrix);
 }
 
@@ -198,16 +189,21 @@ function getProjectionMatrix(fov, near, far, object) {
     );
 }
 
+// Main Loop, called every frame
 function onRender() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Track time since start of render loop
     time += dt;
 
+    // Render every game object and run its update function
     scene.forEach(o => {
+        o.update();
         renderScene(
             getViewMatrix(
                 radius,
                 deg2rad(cameraAngles.x_angle),
-                deg2rad(time * 50),
+                deg2rad(cameraAngles.y_angle),
                 o
             ),
             getProjectionMatrix(fov_Y, near, far, o),
