@@ -1,0 +1,92 @@
+startGame = () =>
+{
+    let gameOver = false; // Flag to keep track if game is over or not
+    let captured = 0; // Counter to keep track of how many animals were captured
+    let escaped = 0; // Counter to keep track of how many animals escaped
+    let animalData = [];
+
+    // Create 10 animals
+    for (let i = 0; i <= 9; i++)
+    {
+        animalData[i] =
+        {
+        	  // Create data structure to hold the animal's availability, speed, x position, and y position
+            // If not available, animal has wandered off or was captured in the pen
+            // We will round the speed to the nearest hundredth and generate the speed randomly
+            'available': true, 'speed': Math.ceil((Math.random() * 10) * 100) / 100, 'x': 0, 'y': 0
+        };
+    }
+
+    // Needed:
+    // loadEnvironment (function to load environment)
+    // loadAnimals (function to render animals on screen)
+    // loadTimer (function to start the timer)
+
+    while (gameOver == false)
+    {
+        for (let i = 0; i <= 9; i++)
+        {
+            dogPosition = moveCursor(); // Function to move dog character and make sure it doesn't collide with the pen
+            
+            if (animalData[i].available == true) // If animal is available
+            {
+                if ((abs(dogPosition.x - animalData[i].x) <= 10) && (abs(dogPosition.y - animalData[i].y) <= 10)) // Not sure if this is the correct calculation
+                    moveAnimalsAway(animalData[i], dogPosition) // If dog is close to this animal, move animal away from dog
+                else
+                    autoMoveAnimals(animalData[i]) // Otherwise call function autoMoveAnimals (function to make animal walk around on its own)
+                // Needed:
+                // If animals out of bounds, set "available" to false, hide animal, increase the counter called "escaped"
+                // If animals is in the pen, set "available" to false, increase the counter called "captured"
+                
+                if (checkGameStatus == 0) // (function to check if timer has finished or if this is the last animal)
+                    gameOver = true;
+    
+                if (gameOver == true)
+                    break;
+            }
+
+        }
+    }
+
+    // printGameOver(); // Print game over message
+}
+
+printGameOver = (temp) => // Function to print game over message
+{
+    return;
+}
+
+loadEnvironment = (temp) => // Function to load environment
+{
+    return;
+}
+
+loadAnimals = (temp) => // Function to load animals
+{
+    return;
+}
+
+loadTimer = (temp) => // Function to load timer
+{
+    return;
+}
+
+checkGameStatus = (temp) => // Function to check game status
+{
+    return;
+}
+
+moveAnimalsAway = (animalObject, dogPosition) => // Function to move animal away from dog
+{
+    return;
+}
+
+autoMoveAnimals = (animalObject) => // Function to move animals on their own randomly
+{
+    return;
+}
+
+moveCursor = (temp) => // Function to move dog character and make sure it doesn't collide with the pen
+{
+    return dogPosition;
+}
