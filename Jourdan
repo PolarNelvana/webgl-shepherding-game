@@ -1,0 +1,3 @@
+https://observablehq.com/d/b4c4d1fe8df5a129
+Description: Created fancy game status message at the bottom of the page with counters and a template for the timer.
+PolarNelvana also added logic to determine when game is over and updates the message accordingly.
