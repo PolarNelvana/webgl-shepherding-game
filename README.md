@@ -6,4 +6,4 @@
 4. Name the file with a number indicating its index and with your name. 
 
 ### Note:
-Any other files/codes that are not on Observable can be posted here too in case someone wants to share useful code or something. Put these files in the "miscellaneous" folder.
+Any other files/codes that are not on Observable can be posted here too in case someone wants to share useful code or something. Put these files in a separate folder named "miscellaneous".
